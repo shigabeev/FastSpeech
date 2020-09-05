@@ -2,10 +2,10 @@ import torch
 import numpy as np
 from scipy.io.wavfile import read
 from scipy.io.wavfile import write
+from scipy import signal
 
 import audio.stft as stft
 import audio.hparams_audio as hparams
-from audio.audio_processing import griffin_lim
 
 _stft = stft.TacotronSTFT(
     hparams.filter_length, hparams.hop_length, hparams.win_length,
@@ -46,21 +46,10 @@ def get_mel_from_wav(audio):
 
     return melspec
 
+def low_pass(audio):
+    sos = signal.butter(50, 7000, 'lp', fs=hparams.sampling_rate, output='sos')
+    return signal.sosfilt(sos, audio)
 
-def inv_mel_spec(mel, out_filename, griffin_iters=60):
-    mel = torch.stack([mel])
-    # mel = torch.stack([torch.from_numpy(_denormalize(mel.numpy()))])
-    mel_decompress = _stft.spectral_de_normalize(mel)
-    mel_decompress = mel_decompress.transpose(1, 2).data.cpu()
-    spec_from_mel_scaling = 1000
-    spec_from_mel = torch.mm(mel_decompress[0], _stft.mel_basis)
-    spec_from_mel = spec_from_mel.transpose(0, 1).unsqueeze(0)
-    spec_from_mel = spec_from_mel * spec_from_mel_scaling
-
-    audio = griffin_lim(torch.autograd.Variable(
-        spec_from_mel[:, :, :-1]), _stft.stft_fn, griffin_iters)
-
-    audio = audio.squeeze()
-    audio = audio.cpu().numpy()
+def save_audio(audio, out_filename):
     audio_path = out_filename
     write(audio_path, hparams.sampling_rate, audio)

@@ -1,0 +1,3 @@
+[submodule "melgan"]
+	path = melgan
+	url = https://github.com/seungwonpark/melgan

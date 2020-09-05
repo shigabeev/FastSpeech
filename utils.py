@@ -3,9 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
+import sys
 
 import hparams
+from melgan.model import generator
 
+device = torch.device('cuda'if torch.cuda.is_available()else 'cpu')
 
 def process_text(train_text_path):
     with open(train_text_path, "r", encoding="utf-8") as f:
@@ -34,7 +37,7 @@ def get_mask_from_lengths(lengths, max_len=None):
 def get_WaveGlow():
     waveglow_path = os.path.join("waveglow", "pretrained_model")
     waveglow_path = os.path.join(waveglow_path, "waveglow_256channels.pt")
-    wave_glow = torch.load(waveglow_path)['model']
+    wave_glow = torch.load(waveglow_path, map_location="cpu")['model']
     wave_glow = wave_glow.remove_weightnorm(wave_glow)
     wave_glow.cuda().eval()
     for m in wave_glow.modules():
@@ -42,6 +45,18 @@ def get_WaveGlow():
             setattr(m, 'padding_mode', 'zeros')
 
     return wave_glow
+
+def get_melgan():
+    if not torch.cuda.is_available():
+        melgan = generator.Generator(hparams.num_mels)
+        checkpoint = torch.hub.load_state_dict_from_url('https://github.com/seungwonpark/melgan/releases/download/v0.3-alpha/nvidia_tacotron2_LJ11_epoch6400.pt', map_location="cpu")
+        melgan.load_state_dict(checkpoint["model_g"])
+        melgan.eval(inference=True)
+    else:
+        melgan = torch.hub.load('seungwonpark/melgan', 'melgan')
+
+    melgan = melgan.to(device)
+    return melgan
 
 
 def pad_1D(inputs, PAD=0):
